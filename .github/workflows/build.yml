@@ -35,7 +35,7 @@ jobs:
 
 
       - name: Clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings -D unused_imports -D dead_code
 
   # ─────────────────────────────────────────────────────────────
   # Job 2: Build frontend
