@@ -1,6 +1,6 @@
 mod parser;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use ars_format::ArsBuilder;
 use clap::{Parser, Subcommand, ArgEnum};
@@ -107,7 +107,7 @@ fn cmd_info(file: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn detect_format(path: &PathBuf, content: &str) -> InputFormat {
+fn detect_format(path: &Path, content: &str) -> InputFormat {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
     match ext.as_str() {
         "yaml" | "yml" => InputFormat::Mihomo,

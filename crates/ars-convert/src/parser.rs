@@ -49,7 +49,7 @@ fn parse_adguard_line(line: &str) -> Option<Rule> {
     {
         let parts: Vec<&str> = line.splitn(2, ' ').collect();
         if parts.len() == 2 {
-            let domain = parts[1].trim().split_whitespace().next()?;
+            let domain = parts[1].split_whitespace().next()?;
             if is_valid_domain(domain) && domain != "localhost" {
                 return Some(Rule::block_exact(domain));
             }

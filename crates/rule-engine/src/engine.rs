@@ -75,7 +75,7 @@ impl RuleEngine {
 
     pub fn metadata(&self) -> Option<ars_format::builder::ArsMetadata> {
         let guard = self.ruleset.load();
-        guard.as_deref().and_then(|r| Some(r.metadata.clone()))
+        guard.as_deref().map(|r| r.metadata.clone())
     }
 
     // ── Custom rule management ─────────────────────────────────────────────
