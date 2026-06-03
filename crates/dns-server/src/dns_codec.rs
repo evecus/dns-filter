@@ -20,7 +20,7 @@ macro_rules! dns_err {
 // ── Constants ────────────────────────────────────────────────────────────────
 
 pub mod rcode { pub const NO_ERROR: u16 = 0; pub const NX_DOMAIN: u16 = 3; pub const REFUSED: u16 = 5; pub const SERV_FAIL: u16 = 2; }
-pub mod qtype { pub const A: u16 = 1; pub const NS: u16 = 2; pub const CNAME: u16 = 5; pub const SOA: u16 = 6; pub const AAAA: u16 = 28; pub const ANY: u16 = 255; }
+pub mod qtype { pub const A: u16 = 1; pub const CNAME: u16 = 5; pub const AAAA: u16 = 28; }
 pub const CLASS_IN: u16 = 1;
 
 // ── DNS Message ──────────────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ fn parse_name(buf: &[u8], start: usize) -> DnsResult<(String, usize)> {
         if len & 0xC0 == 0xC0 {
             // Pointer
             if pos + 1 >= buf.len() { return Err(dns_err!("pointer OOB")); }
-            let ptr = ((len & 0x3F) << 8 | buf[pos+1] as usize);
+            let ptr = (len & 0x3F) << 8 | buf[pos+1] as usize;
             if !jumped { end_pos = pos + 2; }
             jumped = true;
             pos = ptr;

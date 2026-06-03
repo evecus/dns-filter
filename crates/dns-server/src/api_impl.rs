@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use anyhow::Result;
 use rule_engine::MatchResult;
-use serde_json::{json, Value};
+use serde_json::Value;
 use web_api::AppStateApi;
 use crate::AppState;
 

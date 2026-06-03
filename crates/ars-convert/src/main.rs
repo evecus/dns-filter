@@ -2,7 +2,7 @@ mod parser;
 
 use std::path::PathBuf;
 use anyhow::{Context, Result};
-use ars_format::{ArsBuilder, Rule};
+use ars_format::ArsBuilder;
 use clap::{Parser, Subcommand, ArgEnum};
 use tracing::info;
 
@@ -51,7 +51,7 @@ fn main() -> Result<()> {
 
 fn cmd_convert(
     inputs: Vec<PathBuf>, output: PathBuf,
-    format_hint: Option<InputFormat>, description: Option<String>, no_compress: bool,
+    format_hint: Option<InputFormat>, _description: Option<String>, no_compress: bool,
 ) -> Result<()> {
     let mut builder = ArsBuilder::new();
     if no_compress {
