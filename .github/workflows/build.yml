@@ -9,7 +9,7 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────────────────────
-  # Job 1: Run tests (native, fast)
+  # Job 1: Test (native amd64, no cross needed)
   # ─────────────────────────────────────────────────────────────
   test:
     name: Test
@@ -20,7 +20,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry
+      - name: Cache cargo
         uses: actions/cache@v4
         with:
           path: |
@@ -51,13 +51,9 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
+      - name: Install & build
         working-directory: frontend
-        run: npm install
-
-      - name: Build
-        working-directory: frontend
-        run: npm run build
+        run: npm install && npm run build
 
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
@@ -67,7 +63,14 @@ jobs:
           retention-days: 1
 
   # ─────────────────────────────────────────────────────────────
-  # Job 3: Build binaries for linux/amd64 and linux/arm64
+  # Job 3: Cross-compile with cargo-zigbuild
+  #
+  # Why zigbuild?
+  #   - zig ships its own musl libc for every target, no external
+  #     toolchain download needed, no network calls to musl.cc
+  #   - cargo-zigbuild is available on PyPI / pip, always reachable
+  #   - handles zstd-sys (and any other *-sys crate with C code)
+  #     transparently because zig acts as the C compiler
   # ─────────────────────────────────────────────────────────────
   build:
     name: Build (${{ matrix.artifact }})
@@ -78,57 +81,36 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-unknown-linux-musl
+          - target:   x86_64-unknown-linux-musl
             artifact: amd64
-          - target: aarch64-unknown-linux-musl
+          - target:   aarch64-unknown-linux-musl
             artifact: arm64
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust stable
+      - name: Install Rust stable + target
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      # ── amd64: standard musl-tools is enough ──────────────────
-      - name: Install amd64 toolchain
-        if: matrix.artifact == 'amd64'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends musl-tools
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: '0.13.0'
 
-      # ── arm64: need a real musl cross-compiler with musl sysroot
-      #    apt's gcc-aarch64-linux-gnu uses glibc headers → zstd-sys fails.
-      #    musl.cc ships a self-contained aarch64-linux-musl-gcc.
-      - name: Install arm64 musl cross toolchain
-        if: matrix.artifact == 'arm64'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends curl xz-utils
-          curl -sSfL "https://musl.cc/aarch64-linux-musl-cross.tgz" \
-            -o /tmp/musl-cross.tgz
-          sudo tar -xzf /tmp/musl-cross.tgz -C /opt
-          echo "/opt/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
+      - name: Install cargo-zigbuild
+        run: pip install cargo-zigbuild
 
-      - name: Configure cargo linker (arm64 only)
-        if: matrix.artifact == 'arm64'
-        run: |
-          mkdir -p ~/.cargo
-          cat >> ~/.cargo/config.toml << 'EOF'
-          [target.aarch64-unknown-linux-musl]
-          linker = "aarch64-linux-musl-gcc"
-          EOF
-
-      - name: Cache cargo registry
+      - name: Cache cargo
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-${{ matrix.target }}-
+          key: ${{ runner.os }}-zigbuild-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-zigbuild-${{ matrix.target }}-
 
       - name: Download frontend artifact
         uses: actions/download-artifact@v4
@@ -136,37 +118,16 @@ jobs:
           name: frontend-dist
           path: crates/web-api/src/dist/
 
-      - name: Build (amd64)
-        if: matrix.artifact == 'amd64'
+      - name: Build
         run: |
-          cargo build --release \
+          cargo zigbuild --release \
             --bin dns-filter --bin ars-convert \
-            --target x86_64-unknown-linux-musl
-
-      - name: Build (arm64)
-        if: matrix.artifact == 'arm64'
-        env:
-          # cc-rs reads these to pick the C compiler for the target triple.
-          # Without this, cc-rs falls back to aarch64-linux-gnu-gcc (glibc)
-          # which lacks the musl sysroot → zstd-sys fails to compile.
-          CC_aarch64_unknown_linux_musl: aarch64-linux-musl-gcc
-          CXX_aarch64_unknown_linux_musl: aarch64-linux-musl-g++
-          AR_aarch64_unknown_linux_musl: aarch64-linux-musl-ar
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-musl-gcc
-        run: |
-          cargo build --release \
-            --bin dns-filter --bin ars-convert \
-            --target aarch64-unknown-linux-musl
+            --target ${{ matrix.target }}
 
       - name: Strip binaries
         run: |
-          if [[ "${{ matrix.artifact }}" == "arm64" ]]; then
-            STRIP=aarch64-linux-musl-strip
-          else
-            STRIP=strip
-          fi
-          $STRIP target/${{ matrix.target }}/release/dns-filter
-          $STRIP target/${{ matrix.target }}/release/ars-convert
+          strip target/${{ matrix.target }}/release/dns-filter   || true
+          strip target/${{ matrix.target }}/release/ars-convert  || true
 
       - name: Collect artifacts
         run: |
@@ -183,7 +144,7 @@ jobs:
           retention-days: 7
 
   # ─────────────────────────────────────────────────────────────
-  # Job 4: Package & Release (only on version tags)
+  # Job 4: Package & GitHub Release (tags only)
   # ─────────────────────────────────────────────────────────────
   release:
     name: Release
@@ -241,14 +202,10 @@ jobs:
           body: |
             ## dns-filter ${{ steps.ver.outputs.version }}
 
-            ### 下载
-
-            | 平台 | 文件 |
+            | 平台 | 下载 |
             |------|------|
             | Linux x86_64 | `dns-filter-${{ steps.ver.outputs.version }}-linux-amd64.tar.gz` |
             | Linux ARM64  | `dns-filter-${{ steps.ver.outputs.version }}-linux-arm64.tar.gz` |
-
-            ### 快速开始
 
             ```bash
             tar -xzf dns-filter-*-linux-amd64.tar.gz
@@ -258,7 +215,6 @@ jobs:
             # Web UI: http://localhost:3000
             ```
 
-            ### 变更
             ${{ github.event.head_commit.message }}
           files: |
             dist/dns-filter-${{ steps.ver.outputs.version }}-linux-amd64.tar.gz
@@ -272,7 +228,7 @@ jobs:
           prerelease: ${{ contains(steps.ver.outputs.version, '-') }}
 
   # ─────────────────────────────────────────────────────────────
-  # Job 5: Build & push Docker image (on tag or main push)
+  # Job 5: Docker multi-arch image (main branch + tags)
   # ─────────────────────────────────────────────────────────────
   docker:
     name: Docker
@@ -322,7 +278,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
-      - name: Build and push multi-arch image
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
