@@ -200,12 +200,7 @@ jobs:
           tag_name: v0.1.0
           name: dns-filter v0.1.0
           body: |
-            ## dns-filter ${{ steps.ver.outputs.version }}
-
-            | 平台 | 下载 |
-            |------|------|
-            | Linux x86_64 | `dns-filter-${{ steps.ver.outputs.version }}-linux-amd64.tar.gz` |
-            | Linux ARM64  | `dns-filter-${{ steps.ver.outputs.version }}-linux-arm64.tar.gz` |
+            ## dns-filter v0.1.0
 
             ```bash
             tar -xzf dns-filter-*-linux-amd64.tar.gz
@@ -213,12 +208,7 @@ jobs:
             cp config.example.json config.json
             sudo ./dns-filter --config config.json
             # Web UI: http://localhost:3000
-            ```
-
-            ${{ github.event.head_commit.message }}
           files: |
-            dist/dns-filter-${{ steps.ver.outputs.version }}-linux-amd64.tar.gz
-            dist/dns-filter-${{ steps.ver.outputs.version }}-linux-arm64.tar.gz
             dist/dns-filter-linux-amd64
             dist/dns-filter-linux-arm64
             dist/ars-convert-linux-amd64
