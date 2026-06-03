@@ -66,7 +66,10 @@ impl QueryLog {
     pub fn recent(&self, n: usize, filter: Option<&str>) -> Vec<QueryLogEntry> {
         let q = self.entries.lock().unwrap();
         q.iter().rev()
-            .filter(|e| filter.map_or(true, |f| e.domain.contains(f)))
+            .filter(|e| match filter {
+                None    => true,
+                Some(f) => e.domain.contains(f),
+            })
             .take(n)
             .cloned()
             .collect()

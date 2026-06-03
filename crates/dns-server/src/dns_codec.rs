@@ -1,6 +1,6 @@
-/// Minimal DNS wire-format encoder/decoder.
-/// Supports only what we need: parsing queries, building responses.
-/// RFC 1035 compliant for A/AAAA/CNAME queries.
+//! Minimal DNS wire-format encoder/decoder.
+//! Supports only what we need: parsing queries, building responses.
+//! RFC 1035 compliant for A/AAAA/CNAME queries.
 
 use std::fmt;
 
@@ -328,7 +328,7 @@ mod tests {
     #[test]
     fn test_roundtrip_nxdomain() {
         // Build a fake query
-        let mut q = vec![
+        let q = vec![
             0x12, 0x34, // id
             0x01, 0x00, // flags: QR=0 RD=1
             0x00, 0x01, // qdcount=1
